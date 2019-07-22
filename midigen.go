@@ -147,9 +147,14 @@ func populateTable(table *markov.TransitionTable, reader io.Reader) error {
 
 }
 
+// GenerateMidi generates a midi file by iterating over a markov chain that is built using the input reader.
+// The generated midi file is written to the out writer
 func GenerateMidi(input io.Reader, out io.Writer, iterations int) error {
 	table := markov.CreateEmptyTable()
-	populateTable(&table, input)
+	err := populateTable(&table, input)
+	if err != nil {
+		return err
+	}
 	start, err := markov.RandomState(&table)
 	if err != nil {
 		return err
