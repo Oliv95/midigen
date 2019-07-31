@@ -15,6 +15,10 @@ type dataPoint struct {
 	secondByte byte
 }
 
+type MidiGen struct {
+	state *markov.Graph
+}
+
 func addToTrack(track *smf.Track, dtime uint32, status uint8, channel uint8, firstByte uint8, secondByte uint8) error {
 	midiEvent, err := smf.NewMIDIEvent(dtime, status, channel, firstByte, secondByte)
 	if err != nil {
@@ -107,21 +111,21 @@ func getSMFData(reader io.Reader) ([]dataPoint, error) {
 	return data, nil
 }
 
-func populateMarkov(table *markov.TransitionTable, data []markov.State) {
+func populateMarkov(graph *markov.Graph, data []markov.State) {
 	for i := 0; i < len(data)-1; i++ {
 		from := data[i]
 		to := data[i+1]
-		markov.AddTransition(table, from, to)
+		markov.AddTransition(graph, from, to)
 	}
 }
 
-func generate(table *markov.TransitionTable, start markov.State, iterations int) ([]markov.State, error) {
+func generate(graph *markov.Graph, start markov.State, iterations int) ([]markov.State, error) {
 	result := []markov.State{}
 	result = append(result, start)
 
 	current := start
 	for i := 0; i < iterations; i++ {
-		next, err := markov.Transition(table, current)
+		next, err := markov.Transition(graph, current)
 		if err != nil {
 			// Return the all the data generated until the error
 			return result, err
@@ -132,7 +136,15 @@ func generate(table *markov.TransitionTable, start markov.State, iterations int)
 	return result, nil
 }
 
-func populateTable(table *markov.TransitionTable, reader io.Reader) error {
+func EmptyGenerator() MidiGen {
+	graph := markov.CreateEmptyGraph()
+	return MidiGen{
+		&graph,
+	}
+}
+
+// PopulateGraph reads the data from the reader into the graph
+func PopulateGraph(generator *MidiGen, reader io.Reader) error {
 	data, err := getSMFData(reader)
 	if err != nil {
 		return err
@@ -141,25 +153,21 @@ func populateTable(table *markov.TransitionTable, reader io.Reader) error {
 	for i := 0; i < len(data)-1; i++ {
 		from := markov.State{Data: data[i]}
 		to := markov.State{Data: data[i+1]}
-		markov.AddTransition(table, from, to)
+		markov.AddTransition(generator.state, from, to)
 	}
 	return nil
 
 }
 
-// GenerateMidi generates a midi file by iterating over a markov chain that is built using the input reader.
+// GenerateMidi generates a midi file
 // The generated midi file is written to the out writer
-func GenerateMidi(input io.Reader, out io.Writer, iterations int) error {
-	table := markov.CreateEmptyTable()
-	err := populateTable(&table, input)
+func GenerateMidi(generator *MidiGen, out io.Writer, iterations int) error {
+	graph := generator.state
+	start, err := markov.RandomState(graph)
 	if err != nil {
 		return err
 	}
-	start, err := markov.RandomState(&table)
-	if err != nil {
-		return err
-	}
-	result, err := generate(&table, start, iterations)
+	result, err := generate(graph, start, iterations)
 	if err != nil {
 		// TODO add better log message
 		log.Println("non fatal error during midigeneration")

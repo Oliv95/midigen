@@ -10,9 +10,8 @@ import (
 
 func main() {
 	args := os.Args[1:]
+	generator := midigen.EmptyGenerator()
 
-	// Collect all the files from the cmd-line arguments
-	readers := []io.Reader{}
 	for _, file := range args {
 		filePtr, err := os.Open(file)
 		defer filePtr.Close()
@@ -20,13 +19,13 @@ func main() {
 			log.Println("error reading file: ", file)
 		} else {
 			reader := bufio.NewReader(filePtr)
-			readers = append(readers, reader)
+			midigen.PopulateGraph(&generator, reader)
 		}
 	}
 	filePtr, err := os.Create("markov.mid")
 	defer filePtr.Close()
 	writer := bufio.NewWriter(filePtr)
-	err = midigen.GenerateMidi(io.MultiReader(readers...), writer, 50)
+	err = midigen.GenerateMidi(&generator, writer, 1000)
 	if err != nil {
 		log.Fatalln(err)
 	}
