@@ -12,20 +12,20 @@ import (
 	"strconv"
 )
 
-type FileInfo struct {
+type fileInfo struct {
 	Name string `json:"name"`
 	Size int64  `json:"size"`
 }
 
-type Response struct {
-	Data []FileInfo `json:"data"`
+type response struct {
+	Data []fileInfo `json:"data"`
 }
 
-type ErrorMsg struct {
+type errorMsg struct {
 	ErrorMsg string `json:"error"`
 }
 
-func HandleRequest(event events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+func handleRequest(event events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String("eu-north-1"),
@@ -37,7 +37,7 @@ func HandleRequest(event events.APIGatewayProxyRequest) (events.APIGatewayProxyR
 	if err != nil {
 		errorMsg := fmt.Sprintf("Error creating sessions %v", err)
 		fmt.Println(errorMsg)
-		return createResponse(500, responseHeaders, stringToJson(errorMsg)), nil
+		return createResponse(500, responseHeaders, stringToJSON(errorMsg)), nil
 	}
 
 	// Create S3 service client
@@ -47,7 +47,7 @@ func HandleRequest(event events.APIGatewayProxyRequest) (events.APIGatewayProxyR
 	if err != nil {
 		errorMsg := fmt.Sprintf("Unable to list items in bucket %q, %v", os.Getenv("BUCKET_NAME"), err)
 		fmt.Println(errorMsg)
-		return createResponse(500, responseHeaders, stringToJson(errorMsg)), nil
+		return createResponse(500, responseHeaders, stringToJSON(errorMsg)), nil
 	}
 
 	limit, offset := parseParameters(&event)
@@ -56,31 +56,31 @@ func HandleRequest(event events.APIGatewayProxyRequest) (events.APIGatewayProxyR
 	if limit < 0 || offset < 0 {
 		errorMsg := fmt.Sprintf("limit or offset negative: limit %v offset %v\n", limit, offset)
 		fmt.Println(errorMsg)
-		return createResponse(500, responseHeaders, stringToJson(errorMsg)), nil
+		return createResponse(500, responseHeaders, stringToJSON(errorMsg)), nil
 	}
 
 	if offset > totalNbrOfFiles {
 		errorMsg := fmt.Sprintf("Offset cannot be greater than total nbr of files. offset: %v total nbr of files %v", offset, totalNbrOfFiles)
 		fmt.Println(errorMsg)
-		return createResponse(500, responseHeaders, stringToJson(errorMsg)), nil
+		return createResponse(500, responseHeaders, stringToJSON(errorMsg)), nil
 
 	}
 
-	fileInfo := []FileInfo{}
+	fileInfos := []fileInfo{}
 	start := offset
 	stop := minInt(offset+limit, totalNbrOfFiles)
 
 	// get the requested range
 	for _, item := range resp.Contents[start:stop] {
-		fileInfo = append(fileInfo, FileInfo{*item.Key, *item.Size})
+		fileInfos = append(fileInfos, fileInfo{*item.Key, *item.Size})
 	}
 
-	response := Response{Data: fileInfo}
-	responseBody, err := json.Marshal(&response)
+	serverResponse := response{Data: fileInfos}
+	responseBody, err := json.Marshal(&serverResponse)
 	if err != nil {
-		errorMsg := fmt.Sprintf("Failed to serilize response %v %v", response, err)
+		errorMsg := fmt.Sprintf("Failed to serilize response %v %v", serverResponse, err)
 		fmt.Println(errorMsg)
-		return createResponse(500, responseHeaders, stringToJson(errorMsg)), nil
+		return createResponse(500, responseHeaders, stringToJSON(errorMsg)), nil
 
 	}
 
@@ -91,8 +91,8 @@ func createResponse(statusCode int, headers map[string]string, body string) even
 	return events.APIGatewayProxyResponse{StatusCode: statusCode, Headers: headers, Body: body, IsBase64Encoded: true}
 }
 
-func stringToJson(msg string) string {
-	jsonString, err := json.Marshal(&ErrorMsg{ErrorMsg: msg})
+func stringToJSON(msg string) string {
+	jsonString, err := json.Marshal(&errorMsg{ErrorMsg: msg})
 	if err != nil {
 		errorMsg := fmt.Sprintf("{ \"error\": Failed to serilize response %v %v", msg)
 		fmt.Println(errorMsg)
@@ -105,10 +105,8 @@ func stringToJson(msg string) string {
 func minInt(a, b int) int {
 	if a < b {
 		return a
-	} else {
-		return b
 	}
-
+	return b
 }
 
 func parseParameters(event *events.APIGatewayProxyRequest) (int, int) {
@@ -125,6 +123,6 @@ func parseParameters(event *events.APIGatewayProxyRequest) (int, int) {
 }
 
 func main() {
-	lambda.Start(HandleRequest)
+	lambda.Start(handleRequest)
 
 }
