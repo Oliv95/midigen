@@ -33,6 +33,7 @@ func handleRequest(event events.APIGatewayProxyRequest) (events.APIGatewayProxyR
 
 	responseHeaders := make(map[string]string)
 	responseHeaders["Content-Type"] = "application/json"
+	responseHeaders["Access-Control-Allow-Origin"] = os.Getenv("ACCESS_CONTROL_ALLOW_ORIGIN_VALUE")
 
 	if err != nil {
 		errorMsg := fmt.Sprintf("Error creating sessions %v", err)
@@ -64,6 +65,11 @@ func handleRequest(event events.APIGatewayProxyRequest) (events.APIGatewayProxyR
 		fmt.Println(errorMsg)
 		return createResponse(500, responseHeaders, stringToJSON(errorMsg)), nil
 
+	}
+
+	// limit 0 means list everything
+	if limit == 0 {
+		limit = totalNbrOfFiles
 	}
 
 	fileInfos := []fileInfo{}

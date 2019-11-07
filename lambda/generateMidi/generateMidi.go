@@ -16,24 +16,20 @@ import (
 	"os"
 )
 
-type Event struct {
+type clientRequest struct {
 	Keys              []string `json:"keys"`
 	ResultingFileName string   `json:"resultingFileName"`
 	Iterations        int      `json:"iterations"`
 }
 
-type Response struct {
-	URL     string `json:"url"`
-	Message string `json:"message"`
-}
-
-type ErrorMsg struct {
+type errorMsg struct {
 	ErrorMsg string `json:"error"`
 }
 
-func HandleRequest(ctx context.Context, event events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+func handleRequest(ctx context.Context, event events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	responseHeaders := make(map[string]string)
 	responseHeaders["Content-Type"] = "application/json"
+	responseHeaders["Access-Control-Allow-Origin"] = os.Getenv("ACCESS_CONTROL_ALLOW_ORIGIN_VALUE")
 
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String("eu-north-1"),
@@ -45,8 +41,8 @@ func HandleRequest(ctx context.Context, event events.APIGatewayProxyRequest) (ev
 		return createResponse(500, responseHeaders, stringToJSON(errorMsg)), nil
 	}
 
-	// read data from event, should be in a different function
-	data := &Event{}
+	// read data from event
+	data := &clientRequest{}
 	err = json.Unmarshal([]byte(event.Body), data)
 	if err != nil {
 		errorMsg := fmt.Sprintf("Unable to parse body %v", event.Body)
@@ -102,7 +98,7 @@ func HandleRequest(ctx context.Context, event events.APIGatewayProxyRequest) (ev
 		return createResponse(500, responseHeaders, stringToJSON(errorMsg)), nil
 	}
 
-	return createResponse(200, responseHeaders, "{\"testing\": \"bla\"}"), nil
+	return createResponse(200, responseHeaders, ""), nil
 
 }
 
@@ -144,7 +140,7 @@ func createResponse(statusCode int, headers map[string]string, body string) even
 }
 
 func stringToJSON(msg string) string {
-	jsonString, err := json.Marshal(&ErrorMsg{ErrorMsg: msg})
+	jsonString, err := json.Marshal(&errorMsg{ErrorMsg: msg})
 	if err != nil {
 		errorMsg := fmt.Sprintf("{ \"error\": Failed to serilize response %v %v", msg)
 		fmt.Println(errorMsg)
@@ -163,6 +159,6 @@ func minInt(a, b int) int {
 }
 
 func main() {
-	lambda.Start(HandleRequest)
+	lambda.Start(handleRequest)
 
 }
